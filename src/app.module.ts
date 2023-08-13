@@ -3,9 +3,10 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { Todo } from  './todos/todo.entity';
-
+// import { Todo } from  './todos/todo.entity';
+import { join } from 'path';
 import { TodosModule } from './todos/todo.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -18,7 +19,7 @@ import { TodosModule } from './todos/todo.module';
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_NAME'),
-        entities: [Todo],
+        entities: [join(process.cwd(), 'dist/**/*.entity.js')],
         synchronize: true,
       }),
       inject: [ConfigService],
