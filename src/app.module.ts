@@ -6,7 +6,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 // import { Todo } from  './todos/todo.entity';
 import { join } from 'path';
 import { TodosModule } from './todos/todo.module';
-
+import { UsersModule } from './users/user.module';
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -25,6 +25,7 @@ import { TodosModule } from './todos/todo.module';
       inject: [ConfigService],
     }),
     TodosModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
