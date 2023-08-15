@@ -48,3 +48,6 @@ export class TodosService {
     return todo;
   }
 }
+
+// npm install @casl/ability
+// npx eslint --fix src

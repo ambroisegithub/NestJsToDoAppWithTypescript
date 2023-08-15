@@ -19,3 +19,355 @@
 //   providers: [AppService],
 // })
 // export class AppModule {}
+
+
+user.controller.ts
+
+import {
+  Controller,
+  Post,
+  Body,
+  HttpException,
+  HttpStatus,
+  Get,
+  Param,
+  Put,
+  Delete,
+} from '@nestjs/common';
+import { CreateUserDto } from './dto/crate-user.dto';
+import { UsersService } from './user.service';
+import * as bcrypt from 'bcrypt';
+import { UpdateUserDto } from './dto/update-user.dto';
+
+@Controller('users')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Post('signup')
+  async signUp(@Body() createUserDto: CreateUserDto) {
+    const existingUser = await this.usersService.findByEmail(
+      createUserDto.email,
+    );
+    if (existingUser) {
+      throw new HttpException('User already exists', HttpStatus.BAD_REQUEST);
+    }
+
+    const user = await this.usersService.createUser(createUserDto);
+    return user;
+  }
+
+  @Post('login')
+  async login(@Body() loginData: { email: string; password: string }) {
+    const user = await this.usersService.findByEmail(loginData.email);
+    if (!user) {
+      throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
+    }
+
+    const passwordMatch = await bcrypt.compare(
+      loginData.password,
+      user.password,
+    );
+    if (!passwordMatch) {
+      throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
+    }
+
+    return user;
+  }
+
+  @Get()
+  async getAllUsers() {
+    return await this.usersService.getAllUsers();
+  }
+
+  @Get(':id')
+  async getUser(@Param('id') id: number) {
+    return await this.usersService.findById(id);
+  }
+
+  @Put(':id')
+  async updateUser(
+    @Param('id') id: number,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    return await this.usersService.updateUser(id, updateUserDto);
+  }
+
+  @Delete(':id')
+  async deleteUser(@Param('id') id: number) {
+    await this.usersService.deleteUser(id);
+    return { message: 'User deleted successfully' };
+  }
+}
+
+
+
+user.service.ts
+
+
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from './user.entity';
+import { CreateUserDto } from './dto/crate-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import * as bcrypt from 'bcrypt';
+
+@Injectable()
+export class UsersService {
+  constructor(
+    @InjectRepository(User) private readonly userRepository: Repository<User>,
+  ) {}
+
+  async createUser(createUserDto: CreateUserDto): Promise<User> {
+    const { password, ...rest } = createUserDto;
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = this.userRepository.create({
+      ...rest,
+      password: hashedPassword,
+    });
+
+    return await this.userRepository.save(user);
+  }
+
+  async findByEmail(email: string): Promise<User | undefined> {
+    return this.userRepository.findOne({ where: { email } });
+  }
+
+  async findById(id: number): Promise<User | undefined> {
+    return this.userRepository.findOne({ where: { id } });
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return this.userRepository.find();
+  }
+
+  async updateUser(id: number, updateUserDto: UpdateUserDto): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    if (updateUserDto.email) {
+      const existingUser = await this.userRepository.findOne({
+        where: { email: updateUserDto.email },
+      });
+      if (existingUser && existingUser.id !== id) {
+        throw new BadRequestException('Email already exists');
+      }
+    }
+
+    Object.assign(user, updateUserDto);
+
+    return await this.userRepository.save(user);
+  }
+
+  async deleteUser(id: number): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    await this.userRepository.remove(user);
+  }
+}
+
+
+user.module.ts
+
+
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UsersController } from './user.controller';
+import { UsersService } from './user.service';
+import { User } from './user.entity';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([User])],
+  controllers: [UsersController],
+  providers: [UsersService],
+})
+export class UsersModule {}
+
+
+
+
+user.entity.ts
+
+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+
+@Entity({ name: 'users' })
+export class User {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column()
+  firstName: string;
+
+  @Column()
+  lastName: string;
+
+  @Column({ unique: true })
+  email: string;
+
+  @Column()
+  password: string; // Hashed password will be stored here
+}
+
+
+create-user.dto.ts
+
+export class CreateUserDto {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+}
+
+
+todos.controller.ts
+
+import { CreateTodoDto } from './dtos/create-todo.dto';
+import { TodosService } from './todos.service';
+import {
+  Body,
+  Controller,
+  Post,
+  Get,
+  Put,
+  Param,
+  Delete,
+} from '@nestjs/common';
+
+@Controller('todos')
+export class TodoController {
+  constructor(private readonly todosService: TodosService) {}
+
+  @Post()
+  create(@Body() dto: CreateTodoDto) {
+    return this.todosService.create(dto);
+  }
+
+  @Get()
+  findMany() {
+    return this.todosService.findMany();
+  }
+
+  @Put(':id')
+  update(@Param('id') id: number, @Body() dto: CreateTodoDto) {
+    return this.todosService.update(id, dto);
+  }
+
+  @Delete(':id')
+  delete(@Param('id') id: number) {
+    return this.todosService.delete(id);
+  }
+
+  @Get(':id') // Route parameter for the Todo ID
+  findOne(@Param('id') id: number) {
+    return this.todosService.findOne(id);
+  }
+}
+
+
+todos.service.ts
+
+
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Todo } from './todo.entity';
+import { CreateTodoDto } from './dtos/create-todo.dto';
+
+@Injectable()
+export class TodosService {
+  constructor(
+    @InjectRepository(Todo) private readonly todoRepository: Repository<Todo>,
+  ) {}
+
+  async create(dto: CreateTodoDto) {
+    const todo = this.todoRepository.create(dto);
+
+    return await this.todoRepository.save(todo);
+  }
+
+  async findMany() {
+    return await this.todoRepository.find();
+  }
+
+  async update(id: number, dto: CreateTodoDto) {
+    const todo = await this.todoRepository.findOne({ where: { id } });
+    if (!todo) {
+      throw new NotFoundException(`Todo with ID ${id} not found`);
+    }
+    Object.assign(todo, dto);
+
+    return await this.todoRepository.save(todo);
+  }
+
+  async delete(id: number) {
+    const todo = await this.todoRepository.findOne({ where: { id } });
+    if (!todo) {
+      throw new NotFoundException(`Todo with ID ${id} not found`);
+    }
+
+    return await this.todoRepository.remove(todo);
+  }
+
+  async findOne(id: number) {
+    const todo = await this.todoRepository.findOne({ where: { id } });
+    // Use ID directly
+    if (!todo) {
+      throw new NotFoundException(`Todo with ID ${id} not found`);
+    }
+    return todo;
+  }
+}
+
+
+todos.module.ts
+
+
+import { Module } from '@nestjs/common';
+import { Todo } from './todo.entity';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { TodoController } from './todos.controller';
+import { TodosService } from './todos.service';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([Todo])],
+  controllers: [TodoController],
+  providers: [TodosService],
+})
+export class TodosModule {}
+
+
+
+todo.entity.ts
+
+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+
+@Entity({ name: 'todos' })
+export class Todo {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column()
+  title: string;
+}
+
+
+create-todo.dto.ts
+
+export class CreateTodoDto {
+  title: string;
+}
+
+
+
